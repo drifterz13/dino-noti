@@ -2,10 +2,13 @@ package service
 
 import (
 	"fmt"
+	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/drifterz13/dino-noti/config"
+	"github.com/drifterz13/dino-noti/line"
 	"github.com/drifterz13/dino-noti/llm"
 	"github.com/drifterz13/dino-noti/parser"
 	"github.com/drifterz13/dino-noti/scraper"
@@ -97,6 +100,53 @@ func (srv *Service) FindMatchItems(scrapedItems []scraper.Item) ([]MatchedItem, 
 	}
 
 	return matchedItems, nil
+}
+
+func (srv *Service) HandleLineMessageReq(w http.ResponseWriter, req *http.Request) {
+	lineBotClient, err := line.NewLineBotClient(srv.cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating LINE Bot client: %v\n", err)
+		return
+	}
+	events, err := lineBotClient.ParseEvents(req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing LINE events: %v\n", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+
+	go func() {
+		allScrapedItems, scrapeErrors := srv.ScrapeItems()
+		if len(scrapeErrors) > 0 {
+			fmt.Fprintf(os.Stderr, "Completed with %d scraping errors.\n", len(scrapeErrors))
+		}
+
+		matchedItems, err := srv.FindMatchItems(allScrapedItems)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error finding matched items: %v\n", err)
+			return
+		}
+
+		fmt.Printf("Parsed events: %v\n", events)
+
+		replyMessage := generateMessage(matchedItems)
+		err = lineBotClient.HandleSendMessage(events, replyMessage)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error sending message: %v\n", err)
+		} else {
+			fmt.Println("Message sent successfully")
+		}
+	}()
+}
+
+func generateMessage(matchedItems []MatchedItem) string {
+	msg := strings.Builder{}
+	msg.WriteString(fmt.Sprintf("Cameras on the radar 🦖:\n"))
+	for idx, item := range matchedItems {
+		msg.WriteString(fmt.Sprintf("%d. (%s yen) %s - %s\n", idx+1, item.Price, item.MatchedName, item.URL))
+	}
+	return msg.String()
 }
 
 func findScrapedItemByName(scrapedItems []scraper.Item, name string) *scraper.Item {

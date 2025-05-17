@@ -54,7 +54,7 @@ func (c *LLMClient) CheckMatches(itemDescriptions []string, searchTerms []string
 	}
 
 	responseText := strings.TrimSpace(resp.Candidates[0].Content.Parts[0].Text)
-	fmt.Printf("LLM Response: %s\n", responseText)
+	// fmt.Printf("LLM Response: %s\n", responseText)
 
 	for i, line := range strings.Split(responseText, "\n") {
 		splittedStr := strings.Split(line, ":")

@@ -3,14 +3,18 @@ package config
 import (
 	"fmt"
 	"os"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	TargetURL    string
-	MaxPages     int
-	MyList       []string
-	GeminiAPIKey string
-	DatabasePath string
+	TargetURL         string
+	MaxPages          int
+	MyList            []string
+	GeminiAPIKey      string
+	DatabasePath      string
+	LineChannelToken  string
+	LineChannelSecret string
 }
 
 const (
@@ -19,6 +23,11 @@ const (
 )
 
 func LoadConfig() (*Config, error) {
+	err := godotenv.Load()
+	if err != nil {
+		return nil, fmt.Errorf("Error loading .env file: %w", err)
+	}
+
 	cfg := &Config{
 		TargetURL: TARGET_URL,
 	}
@@ -91,7 +100,6 @@ func LoadConfig() (*Config, error) {
 
 	cfg.MyList = myList
 
-	// Gemini API Key
 	cfg.GeminiAPIKey = os.Getenv("GEMINI_API_KEY")
 	if cfg.GeminiAPIKey == "" {
 		return nil, fmt.Errorf("GEMINI_API_KEY environment variable not set")
@@ -103,6 +111,16 @@ func LoadConfig() (*Config, error) {
 		// This MUST match your Cloud Run volume mount path configuration
 		cfg.DatabasePath = "/mnt/data/items.db"
 		fmt.Printf("DATABASE_PATH not set, using default: %s\n", cfg.DatabasePath)
+	}
+
+	cfg.LineChannelToken = os.Getenv("LINE_CHANNEL_TOKEN")
+	if cfg.LineChannelToken == "" {
+		return nil, fmt.Errorf("LINE_CHANNEL_TOKEN environment variable not set")
+	}
+
+	cfg.LineChannelSecret = os.Getenv("LINE_CHANNEL_SECRET")
+	if cfg.LineChannelSecret == "" {
+		return nil, fmt.Errorf("LINE_CHANNEL_SECRET environment variable not set")
 	}
 
 	return cfg, nil
