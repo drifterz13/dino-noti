@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/drifterz13/dino-noti/config"
@@ -64,31 +65,39 @@ func (srv *Service) FindMatchItems(scrapedItems []scraper.Item) ([]MatchedItem, 
 		os.Exit(1)
 	}
 
-	var matchedItems []MatchedItem
 	batchSize := 40
+	numGoroutines := (len(scrapedItems) + batchSize - 1) / batchSize
+
+	var wg sync.WaitGroup
+	resultChan := make(chan []MatchedItem, numGoroutines)
+	errorChan := make(chan error, numGoroutines)
 
 	for i := 0; i < len(scrapedItems); i += batchSize {
-		end := i + batchSize
-		if end > len(scrapedItems) {
-			end = len(scrapedItems)
-		}
+		wg.Add(1)
+		go func(start int) {
+			defer wg.Done()
 
-		var chunk []string
-		for _, item := range scrapedItems[i:end] {
-			chunk = append(chunk, item.Name)
-		}
+			end := start + batchSize
+			if end > len(scrapedItems) {
+				end = len(scrapedItems)
+			}
 
-		matches, err := llmClient.CheckMatches(chunk, srv.cfg.MyList)
+			var chunk []string
+			for _, item := range scrapedItems[start:end] {
+				chunk = append(chunk, item.Name)
+			}
 
-		if err != nil {
-			return matchedItems, err
-		}
+			matches, err := llmClient.CheckMatches(chunk, srv.cfg.MyList)
+			if err != nil {
+				errorChan <- err
+				return
+			}
 
-		if len(matches) > 0 {
+			var chunkMatchedItems []MatchedItem
 			for _, matchedItem := range matches {
-				scrapedItem := findScrapedItemByName(scrapedItems, matchedItem.OriginalName)
+				scrapedItem := findScrapedItemByName(scrapedItems[start:end], matchedItem.OriginalName)
 				if scrapedItem != nil {
-					matchedItems = append(matchedItems, MatchedItem{
+					chunkMatchedItems = append(chunkMatchedItems, MatchedItem{
 						URL:          scrapedItem.URL,
 						Price:        scrapedItem.Price,
 						OriginalName: matchedItem.OriginalName,
@@ -96,10 +105,27 @@ func (srv *Service) FindMatchItems(scrapedItems []scraper.Item) ([]MatchedItem, 
 					})
 				}
 			}
-		}
+
+			resultChan <- chunkMatchedItems
+		}(i)
 	}
 
-	return matchedItems, nil
+	go func() {
+		wg.Wait()
+		close(resultChan)
+		close(errorChan)
+	}()
+
+	var allMatchedItems []MatchedItem
+	for chunkMatchedItems := range resultChan {
+		allMatchedItems = append(allMatchedItems, chunkMatchedItems...)
+	}
+
+	if len(errorChan) > 0 {
+		return nil, <-errorChan // Return the first error encountered
+	}
+
+	return allMatchedItems, nil
 }
 
 func (srv *Service) HandleLineMessageReq(w http.ResponseWriter, req *http.Request) {
