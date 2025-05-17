@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/drifterz13/dino-noti/config"
 	"github.com/drifterz13/dino-noti/line"
 	"github.com/drifterz13/dino-noti/llm"
+	"github.com/drifterz13/dino-noti/model"
 	"github.com/drifterz13/dino-noti/parser"
 	"github.com/drifterz13/dino-noti/scraper"
 )
@@ -25,12 +25,12 @@ func NewService(cfg *config.Config) *Service {
 	}
 }
 
-func (srv *Service) ScrapeItems() ([]scraper.Item, []error) {
+func (srv *Service) ScrapeItems() ([]model.ScrapeItem, []error) {
 	fmt.Printf("Starting scrape for %s up to page %d...\n", srv.cfg.TargetURL, srv.cfg.MaxPages)
 
 	ps := parser.NewBuyeeParser()
 
-	var allScrapedItems []scraper.Item
+	var allScrapedItems []model.ScrapeItem
 	scrapeErrors := []error{}
 
 	for pageNum := 1; pageNum <= srv.cfg.MaxPages; pageNum++ {
@@ -51,14 +51,7 @@ func (srv *Service) ScrapeItems() ([]scraper.Item, []error) {
 	return allScrapedItems, scrapeErrors
 }
 
-type MatchedItem struct {
-	URL          string
-	OriginalName string
-	MatchedName  string
-	Price        string
-}
-
-func (srv *Service) FindMatchItems(scrapedItems []scraper.Item) ([]MatchedItem, error) {
+func (srv *Service) FindMatchItems(scrapedItems []model.ScrapeItem) ([]model.MatchedItem, error) {
 	llmClient, err := llm.NewLLMClient(srv.cfg.GeminiAPIKey)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error initializing LLM client: %v\n", err)
@@ -69,7 +62,7 @@ func (srv *Service) FindMatchItems(scrapedItems []scraper.Item) ([]MatchedItem, 
 	numGoroutines := (len(scrapedItems) + batchSize - 1) / batchSize
 
 	var wg sync.WaitGroup
-	resultChan := make(chan []MatchedItem, numGoroutines)
+	resultChan := make(chan []model.MatchedItem, numGoroutines)
 	errorChan := make(chan error, numGoroutines)
 
 	for i := 0; i < len(scrapedItems); i += batchSize {
@@ -93,15 +86,16 @@ func (srv *Service) FindMatchItems(scrapedItems []scraper.Item) ([]MatchedItem, 
 				return
 			}
 
-			var chunkMatchedItems []MatchedItem
+			var chunkMatchedItems []model.MatchedItem
 			for _, matchedItem := range matches {
 				scrapedItem := findScrapedItemByName(scrapedItems[start:end], matchedItem.OriginalName)
 				if scrapedItem != nil {
-					chunkMatchedItems = append(chunkMatchedItems, MatchedItem{
+					chunkMatchedItems = append(chunkMatchedItems, model.MatchedItem{
 						URL:          scrapedItem.URL,
 						Price:        scrapedItem.Price,
 						OriginalName: matchedItem.OriginalName,
 						MatchedName:  matchedItem.MatchedName,
+						ImageURL:     scrapedItem.ImageURL,
 					})
 				}
 			}
@@ -116,7 +110,7 @@ func (srv *Service) FindMatchItems(scrapedItems []scraper.Item) ([]MatchedItem, 
 		close(errorChan)
 	}()
 
-	var allMatchedItems []MatchedItem
+	var allMatchedItems []model.MatchedItem
 	for chunkMatchedItems := range resultChan {
 		allMatchedItems = append(allMatchedItems, chunkMatchedItems...)
 	}
@@ -154,10 +148,7 @@ func (srv *Service) HandleLineMessageReq(w http.ResponseWriter, req *http.Reques
 			return
 		}
 
-		fmt.Printf("Parsed events: %v\n", events)
-
-		replyMessage := generateMessage(matchedItems)
-		err = lineBotClient.HandleSendMessage(events, replyMessage)
+		err = lineBotClient.HandleSendMessage(events, matchedItems)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error sending message: %v\n", err)
 		} else {
@@ -166,16 +157,7 @@ func (srv *Service) HandleLineMessageReq(w http.ResponseWriter, req *http.Reques
 	}()
 }
 
-func generateMessage(matchedItems []MatchedItem) string {
-	msg := strings.Builder{}
-	msg.WriteString(fmt.Sprintf("Cameras on the radar 🦖:\n"))
-	for idx, item := range matchedItems {
-		msg.WriteString(fmt.Sprintf("%d. (%s yen) %s - %s\n", idx+1, item.Price, item.MatchedName, item.URL))
-	}
-	return msg.String()
-}
-
-func findScrapedItemByName(scrapedItems []scraper.Item, name string) *scraper.Item {
+func findScrapedItemByName(scrapedItems []model.ScrapeItem, name string) *model.ScrapeItem {
 	for _, item := range scrapedItems {
 		if item.Name == name {
 			return &item

@@ -5,13 +5,9 @@ import (
 	"io"
 	"net/http"
 	"time"
-)
 
-type Item struct {
-	URL   string
-	Name  string
-	Price string
-}
+	"github.com/drifterz13/dino-noti/model"
+)
 
 func FetchPage(url string) (string, error) {
 	fmt.Printf("Fetching URL: %s\n", url)
@@ -45,10 +41,10 @@ func FetchPage(url string) (string, error) {
 }
 
 type Parser interface {
-	Parse(htmlContent string) ([]Item, error)
+	Parse(htmlContent string) ([]model.ScrapeItem, error)
 }
 
-func ScrapePage(url string, parser Parser) ([]Item, error) {
+func ScrapePage(url string, parser Parser) ([]model.ScrapeItem, error) {
 	htmlContent, err := FetchPage(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch and parse %s: %w", url, err)

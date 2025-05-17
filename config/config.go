@@ -10,7 +10,6 @@ type Config struct {
 	MaxPages          int
 	MyList            []string
 	GeminiAPIKey      string
-	DatabasePath      string
 	LineChannelToken  string
 	LineChannelSecret string
 }
@@ -96,14 +95,6 @@ func LoadConfig() (*Config, error) {
 	cfg.GeminiAPIKey = os.Getenv("GEMINI_API_KEY")
 	if cfg.GeminiAPIKey == "" {
 		return nil, fmt.Errorf("GEMINI_API_KEY environment variable not set")
-	}
-
-	cfg.DatabasePath = os.Getenv("DATABASE_PATH")
-	if cfg.DatabasePath == "" {
-		// Default path within the expected mounted volume location
-		// This MUST match your Cloud Run volume mount path configuration
-		cfg.DatabasePath = "/mnt/data/items.db"
-		fmt.Printf("DATABASE_PATH not set, using default: %s\n", cfg.DatabasePath)
 	}
 
 	cfg.LineChannelToken = os.Getenv("LINE_CHANNEL_TOKEN")

@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
-	scraper "github.com/drifterz13/dino-noti/scraper"
+	"github.com/drifterz13/dino-noti/model"
 )
 
 type BuyeeParser struct{}
@@ -14,13 +14,13 @@ func NewBuyeeParser() *BuyeeParser {
 	return &BuyeeParser{}
 }
 
-func (p *BuyeeParser) Parse(htmlContent string) ([]scraper.Item, error) {
+func (p *BuyeeParser) Parse(htmlContent string) ([]model.ScrapeItem, error) {
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(htmlContent))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load HTML for parsing: %w", err)
 	}
 
-	var items []scraper.Item
+	var items []model.ScrapeItem
 
 	itemSelector := ".itemCard"
 
@@ -38,6 +38,17 @@ func (p *BuyeeParser) Parse(htmlContent string) ([]scraper.Item, error) {
 		// Clean up the price (remove "yen" and trim spaces)
 		price := strings.TrimSpace(strings.Replace(priceText, "yen", "", -1))
 
+		// Find the image URL
+		imageURL, exists := s.Find(".g-thumbnail__image").Attr("data-src")
+		if exists {
+			fileExt := ".jpg"
+			fileExtIdx := strings.Index(imageURL, fileExt)
+
+			if fileExtIdx != -1 {
+				imageURL = imageURL[:fileExtIdx+len(fileExt)]
+			}
+		}
+
 		// Only add items that have at least a name and URL
 		if name != "" && exists {
 			// Handle relative URLs by prepending the base URL if needed
@@ -46,10 +57,11 @@ func (p *BuyeeParser) Parse(htmlContent string) ([]scraper.Item, error) {
 				url = baseURL + url
 			}
 
-			items = append(items, scraper.Item{
-				Name:  name,
-				Price: price,
-				URL:   url,
+			items = append(items, model.ScrapeItem{
+				Name:     name,
+				Price:    price,
+				URL:      url,
+				ImageURL: imageURL,
 			})
 		}
 	})

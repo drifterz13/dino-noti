@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/drifterz13/dino-noti/matcher"
+	"github.com/drifterz13/dino-noti/model"
 	"google.golang.org/genai"
 )
 
@@ -29,14 +30,8 @@ func NewLLMClient(apiKey string) (*LLMClient, error) {
 	return &LLMClient{client: client}, nil
 }
 
-type MatchedItem struct {
-	Index        int
-	OriginalName string
-	MatchedName  string
-}
-
-func (c *LLMClient) CheckMatches(itemDescriptions []string, searchTerms []string) ([]MatchedItem, error) {
-	var matchedItems []MatchedItem
+func (c *LLMClient) CheckMatches(itemDescriptions []string, searchTerms []string) ([]model.MatchedItem, error) {
+	var matchedItems []model.MatchedItem
 
 	prompt := buildProductNames(itemDescriptions)
 
@@ -54,7 +49,6 @@ func (c *LLMClient) CheckMatches(itemDescriptions []string, searchTerms []string
 	}
 
 	responseText := strings.TrimSpace(resp.Candidates[0].Content.Parts[0].Text)
-	// fmt.Printf("LLM Response: %s\n", responseText)
 
 	for i, line := range strings.Split(responseText, "\n") {
 		splittedStr := strings.Split(line, ":")
@@ -63,8 +57,8 @@ func (c *LLMClient) CheckMatches(itemDescriptions []string, searchTerms []string
 
 		matched, itemName := matcher.MatchItem(responseName, searchTerms)
 		if matched {
-			item := MatchedItem{
-				Index:        i,
+			item := model.MatchedItem{
+				Index:        i + 1,
 				OriginalName: originalName,
 				MatchedName:  itemName,
 			}
