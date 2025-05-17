@@ -8,7 +8,6 @@ import (
 	scraper "github.com/drifterz13/dino-noti/scraper"
 )
 
-// BuyeeParser implements the Parser interface for the Buyee website structure
 type BuyeeParser struct{}
 
 func NewBuyeeParser() *BuyeeParser {
@@ -23,14 +22,11 @@ func (p *BuyeeParser) Parse(htmlContent string) ([]scraper.Item, error) {
 
 	var items []scraper.Item
 
-	// Select the item card elements
 	itemSelector := ".itemCard"
 
 	doc.Find(itemSelector).Each(func(i int, s *goquery.Selection) {
-		// Find the item name
 		name := strings.TrimSpace(s.Find(".itemCard__itemName a").Text())
 
-		// Find the item URL - need to prepend the base URL if it's relative
 		url, exists := s.Find(".itemCard__itemName a").Attr("href")
 		if !exists {
 			// Try another selector if the first one doesn't work

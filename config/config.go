@@ -8,13 +8,14 @@ import (
 type Config struct {
 	TargetURL    string
 	MaxPages     int
-	MyList       []string // Items you are looking for
+	MyList       []string
 	GeminiAPIKey string
 	DatabasePath string
 }
 
 const (
-	TARGET_URL = "https://buyee.jp/item/search/category/2084261642?sort=end&order=d&aucmin_bidorbuy_price=6000&aucmax_bidorbuy_price=30000"
+	TARGET_URL        = "https://buyee.jp/item/search/category/2084261642?sort=end&order=d&aucmin_bidorbuy_price=6000&aucmax_bidorbuy_price=30000"
+	DEFAULT_MAX_PAGES = 10
 )
 
 func LoadConfig() (*Config, error) {
@@ -22,10 +23,9 @@ func LoadConfig() (*Config, error) {
 		TargetURL: TARGET_URL,
 	}
 
-	// Max pages to scrape (default to 10)
 	maxPagesStr := os.Getenv("MAX_PAGES")
 	if maxPagesStr == "" {
-		cfg.MaxPages = 10
+		cfg.MaxPages = DEFAULT_MAX_PAGES
 	} else {
 		_, err := fmt.Sscan(maxPagesStr, &cfg.MaxPages)
 		if err != nil {
@@ -97,9 +97,7 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("GEMINI_API_KEY environment variable not set")
 	}
 
-	// Database Path for SQLite (on mounted volume)
-	// cfg.DatabasePath = os.Getenv("DATABASE_PATH")
-	cfg.DatabasePath = "./data/items.db"
+	cfg.DatabasePath = os.Getenv("DATABASE_PATH")
 	if cfg.DatabasePath == "" {
 		// Default path within the expected mounted volume location
 		// This MUST match your Cloud Run volume mount path configuration

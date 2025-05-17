@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/drifterz13/dino-noti/matcher"
 	"google.golang.org/genai"
 )
 
@@ -28,58 +29,49 @@ func NewLLMClient(apiKey string) (*LLMClient, error) {
 	return &LLMClient{client: client}, nil
 }
 
-// CheckMatch uses Gemini to check if the item description matches any term in the list.
-// It returns the matched term (if any) and a boolean indicating if a match occurred.
-func (c *LLMClient) CheckMatch(itemDescription string, searchTerms []string) (string, bool, error) {
-	prompt := buildMatchPrompt(itemDescription, searchTerms)
+type MatchedItem struct {
+	Index        int
+	OriginalName string
+	MatchedName  string
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second) // Give LLM some time
+func (c *LLMClient) CheckMatches(itemDescriptions []string, searchTerms []string) ([]MatchedItem, error) {
+	var matchedItems []MatchedItem
+
+	prompt := buildProductNames(itemDescriptions)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	fmt.Printf("Sending prompt to LLM for item: %s...\n", itemDescription)
 	resp, err := c.client.Models.GenerateContent(ctx, "gemini-2.0-flash", genai.Text(prompt), nil)
 	if err != nil {
-		return "", false, fmt.Errorf("failed to generate content from LLM: %w", err)
+		return matchedItems, fmt.Errorf("failed to generate content from LLM: %w", err)
 	}
 
-	// Parse the response
 	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
 		fmt.Println("LLM returned no candidates or parts.")
-		return "", false, nil // No usable response
+		return matchedItems, nil
 	}
 
-	responseText := fmt.Sprint(resp.Candidates[0].Content.Parts[0])
-	fmt.Printf("LLM Response: %s\n", responseText) // Log the raw response
+	responseText := strings.TrimSpace(resp.Candidates[0].Content.Parts[0].Text)
+	fmt.Printf("LLM Response: %s\n", responseText)
 
-	// Simple parsing: Look for a specific phrase like "MATCH: [Term]" or "NO MATCH"
-	// This is highly dependent on your prompt design and expected output format.
-	// A more robust approach would be to ask the LLM for JSON output.
-	// Let's parse for "MATCH:" followed by a potential term.
-	if strings.Contains(strings.ToUpper(responseText), "NO MATCH") {
-		return "", false, nil
-	}
+	for i, line := range strings.Split(responseText, "\n") {
+		splittedStr := strings.Split(line, ":")
+		originalName := strings.TrimSpace(splittedStr[0])
+		responseName := strings.TrimSpace(splittedStr[1])
 
-	matchPrefix := "MATCH:"
-	if strings.Contains(strings.ToUpper(responseText), matchPrefix) {
-		// Attempt to extract the term after "MATCH:"
-		parts := strings.SplitN(responseText, matchPrefix, 2)
-		if len(parts) == 2 {
-			matchedTerm := strings.TrimSpace(parts[1])
-			// Optional: Validate if the extracted term is one of the search terms
-			// for better reliability, but LLM might return a variation.
-			// Simple check for non-empty term:
-			if matchedTerm != "" {
-				// Further refinement: Sometimes LLM just says "MATCH: Yes".
-				// If it says "MATCH: Yes", let's return the original search terms joined as the matched term for logging clarity.
-				if strings.EqualFold(matchedTerm, "Yes") {
-					matchedTerm = strings.Join(searchTerms, ", ") // Indicate it matched one of these
-				}
-				return matchedTerm, true, nil
+		matched, itemName := matcher.MatchItem(responseName, searchTerms)
+		if matched {
+			item := MatchedItem{
+				Index:        i,
+				OriginalName: originalName,
+				MatchedName:  itemName,
 			}
+			matchedItems = append(matchedItems, item)
+			fmt.Printf("Matched Item: %s -> %s\n", originalName, itemName)
 		}
 	}
 
-	// If we reach here, the LLM didn't clearly indicate a match in the expected format
-	fmt.Println("LLM response did not indicate a clear match.")
-	return "", false, nil
+	return matchedItems, nil
 }

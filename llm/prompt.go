@@ -5,56 +5,48 @@ import (
 	"strings"
 )
 
-// buildMatchPrompt constructs the prompt for the LLM.
-// Experiment heavily with this prompt for best results!
-func buildMatchPrompt(itemDescription string, searchTerms []string) string {
-	// Example prompt structure:
-	// - Role: Assistant
-	// - Task: Compare item description to a list of desired items.
-	// - Input: Item description, list of desired items.
-	// - Output: Clear YES/NO answer, potentially indicating which term matched.
-	// - Format instruction: Use specific keywords like "MATCH:" or "NO MATCH".
+func buildProductNames(itemDescriptions []string) string {
+	formattedDescriptions := formatItemDescriptions(itemDescriptions)
 
 	prompt := fmt.Sprintf(`
-You are an assistant designed to match product descriptions to a list of desired items.
-Analyze the following product description and determine if it matches any item in the provided list.
-The item description might include extra details, specifications, or marketing text. Focus on identifying the core product.
-
-Product Description:
-"%s"
-
-List of Desired Items:
-- %s
+You are an assistant designed to extract the brand and model specifically focusing on digital compact cameras.
+Analyze the following product descriptions and output the brand and model of the digital compact camera along with 
+the provided item description.
+The item descriptions might include extra details, specifications, or marketing text. Focus on identifying brand and model for Canon, Nikon, Sony, Fuji, Casio, and Panasonic digital compact cameras.
 
 Instructions:
-1. If the product description clearly matches one or more items in the "List of Desired Items", respond *only* with the format: "MATCH: [The term from the list that matched or a summary if multiple]".
-2. If the product description does NOT match any item in the "List of Desired Items", respond *only* with the format: "NO MATCH".
+1. For each product description that's a digital compact camera, respond with the format: "[Item description]: [Brand] [Model]".
+2. If a product description cannot be identified as a digital compact camera, skip it.
 3. Be concise. Do not include explanations or conversational text, just the required format.
+4. Ensure that you extract and return the brand and model name of the digital compact camera
 
 Examples:
-Product Description: "Canon キヤノン PowerShot A4000 IS コンパクトデジ"
-List of Desired Items: - Canon Powershot A4000
-Response: MATCH: Canon Powershot A4000
+Product Descriptions:
+1. Canon キヤノン PowerShot A4000 IS コンパクトデジ
+2. 動作確認済み】ACアダプター CASIO カシオ デジカ
+3. VANGUARD◆デジタルカメラその他/VEO3T+234A
+4. 205 ★稼働品★Canon キャノン IXY 110F コンパク
 
-Product Description: "動作確認済み】ACアダプター CASIO カシオ デジカ"
-List of Desired Items: - Casio Exilim EX-ZR100
-Response: NO MATCH
 
-Product Description: "205 ★稼働品★Canon キャノン IXY 110F コンパク"
-List of Desired Items: - Canon IXY 110F
-Response: MATCH: Canon IXY 110F
+Response:
+Canon キヤノン PowerShot A4000 IS コンパクトデジ: Canon PowerShot A4000
+205 ★稼働品★Canon キャノン IXY 110F コンパク: Canon IXY 110F
 
 Now, analyze the following:
-Product Description: "%s"
-List of Desired Items:
-- %s
+Product Descriptions:
+%s
 
 Your Response:`,
-		itemDescription,
-		strings.Join(searchTerms, ",\n- "), // Format list nicely
-		itemDescription,                    // Repeat for structure
-		strings.Join(searchTerms, ",\n- "), // Repeat for structure
+		formattedDescriptions,
 	)
 
-	return strings.TrimSpace(prompt) // Trim leading/trailing whitespace
+	return strings.TrimSpace(prompt)
+}
+
+func formatItemDescriptions(descriptions []string) string {
+	var formatted []string
+	for i, desc := range descriptions {
+		formatted = append(formatted, fmt.Sprintf("%d. %s", i+1, desc))
+	}
+	return strings.Join(formatted, "\n")
 }
