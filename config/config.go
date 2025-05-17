@@ -3,8 +3,6 @@ package config
 import (
 	"fmt"
 	"os"
-
-	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -23,11 +21,6 @@ const (
 )
 
 func LoadConfig() (*Config, error) {
-	err := godotenv.Load()
-	if err != nil {
-		return nil, fmt.Errorf("Error loading .env file: %w", err)
-	}
-
 	cfg := &Config{
 		TargetURL: TARGET_URL,
 	}
