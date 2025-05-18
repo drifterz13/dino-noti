@@ -64,7 +64,7 @@ func LoadConfig() (*Config, error) {
 		"Canon IXY 200f",
 		"Canon IXY 210f",
 		"Canon IXY 420f",
-		"Canon IXY 600",
+		"Canon IXY 600f",
 		"Canon PowerShot E1",
 		"Canon PowerShot A800",
 		"Canon PowerShot A1000",

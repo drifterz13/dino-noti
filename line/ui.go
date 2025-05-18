@@ -26,7 +26,7 @@ func BuildFlexBubbleContainer(title, price, imageURL, productURL string) *messag
 		Hero: &messaging_api.FlexImage{
 			Url:         imageURL,
 			Size:        "full",
-			AspectRatio: "20:13",
+			AspectRatio: "1:1",
 			AspectMode:  "cover",
 			Action:      messaging_api.UriAction{Uri: productURL, Label: "View Product"},
 		},

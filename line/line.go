@@ -38,7 +38,6 @@ func (c *LineBotClient) ParseEvents(req *http.Request) ([]webhook.EventInterface
 	if req.Method != http.MethodPost {
 		return nil, errors.New("Invalid request method")
 	}
-
 	cb, err := webhook.ParseRequest(c.Cfg.LineChannelSecret, req)
 
 	if err != nil {
@@ -54,11 +53,15 @@ func (c *LineBotClient) ParseEvents(req *http.Request) ([]webhook.EventInterface
 
 func (c *LineBotClient) HandleSendMessage(events []webhook.EventInterface, items []model.MatchedItem) error {
 	for _, event := range events {
+
 		switch e := event.(type) {
 		case webhook.MessageEvent:
 			switch message := e.Message.(type) {
 			case webhook.StickerMessageContent:
-				fmt.Println("Sending flex message...")
+				if len(items) == 0 {
+					c.SendMessage(e.ReplyToken, "ไม่มีกล้องที่น่าสนใจในตอนนี้เลยครับ 🥲")
+					return nil
+				}
 
 				var flexBubbles []*messaging_api.FlexBubble
 				for _, item := range items {
@@ -70,6 +73,11 @@ func (c *LineBotClient) HandleSendMessage(events []webhook.EventInterface, items
 					return err
 				}
 			case webhook.TextMessageContent:
+				if len(items) == 0 {
+					c.SendMessage(e.ReplyToken, "ไม่มีกล้องที่น่าสนใจในตอนนี้เลยครับ 🥲")
+					return nil
+				}
+
 				replyMessage := generateMessage(items)
 				c.SendMessage(e.ReplyToken, replyMessage)
 			default:
